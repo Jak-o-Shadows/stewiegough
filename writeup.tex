@@ -1,0 +1,376 @@
+\documentclass[]{article}
+%include packages
+\usepackage{graphicx} %for importing pictures
+\usepackage{titlesec} %for making chapters look like they are meant to $ deeper sections
+\usepackage{hyperref} %for hyperlinks in table of contents/figures, and in mentioning appendices, etc
+%\usepackage{fancyhdr} %for footers
+\usepackage{chngcntr} %for continous numbering of figures
+\usepackage{caption} %to allow subfigures
+\usepackage{subcaption} %to allow subfigure
+%\usepackage{float} %to make figurs stay put -- use \begin{figure}[H] 
+\usepackage{parskip} %puts line breaks after a paragraph marked by \par
+%\usepackage{booktabs} %for nicer looking tables
+\usepackage{grffile} %for spaces in image filenames
+%\usepackage{listings} %to include code in appendices
+%\usepackage{tikz} %for drawing things
+\usepackage{mathtools} %maths stuff
+\usepackage{amsmath}
+%\usepackage{IEEEtrantools} %good multi-line maths stuff
+%\usepackage{siunitx} %Typeset SI units nicely
+\usepackage{bm} %bold, italicized, etc maths
+\usepackage{etoolbox} %to remove spaces in the list of tables %for making things nicer via improving programmabilit - used for increasing height of arrays (bmatrix) because of partials
+
+%Custom commands
+\newcommand\vect[1]{\bm{#1}} % make vectors bold
+
+%custom commands from the internet
+%Make partial fractions fit nicely in things - https://tex.stackexchange.com/questions/19457/using-display-style-fraction-in-a-matrix-environment
+\makeatletter
+\newif\ifcenter@asb@\center@asb@false
+\def\center@arstrutbox{%
+    \setbox\@arstrutbox\hbox{$\vcenter{\box\@arstrutbox}$}%
+    }
+\newcommand*{\CenteredArraystretch}[1]{%
+    \ifcenter@asb@\else
+      \pretocmd{\@mkpream}{\center@arstrutbox}{}{}%
+      \center@asb@true
+    \fi
+    \renewcommand{\arraystretch}{#1}%
+    }
+\makeatother
+
+%Configuration
+%change margins so that page is wider
+	\usepackage[margin=2cm]{geometry}
+	
+%Sectioning
+%set down to subsubsubsubsections to show numbers
+	\setcounter{secnumdepth}{4}
+%add a subsubsubsection command
+	\titleclass{\subsubsubsection}{straight}[\subsection]
+	
+	\newcounter{subsubsubsection}[subsubsection]
+	\renewcommand\thesubsubsubsection{\thesubsubsection.\arabic{subsubsubsection}}
+	
+	\titleformat{\subsubsubsection}
+	{\normalfont\normalsize\bfseries}{\thesubsubsubsection}{1em}{}
+	\titlespacing*{\subsubsubsection}
+	{0pt}{3.25ex plus 1ex minus .2ex}{1.5ex plus .2ex}
+	
+	\makeatletter
+	\def\toclevel@subsubsubsection{4}
+	\def\l@subsubsubsection{\@dottedtocline{3}{7em}{4em}}
+	\@addtoreset{subsubsubsection}{section}
+	\@addtoreset{subsubsubsection}{subsection}
+	\makeatother
+
+%opening
+\title{Stewart-Gough Platform Kinematics}
+\author{Jak\_o\_Shadows}
+
+\begin{document}
+
+\maketitle
+
+
+\section{Coordinate System Definitions}
+\par
+	Two coordinate systems are used. The first corresponds to the base plate, and the second the moveable upper platform. For each coordinate system, $\hat{z}$ is upwards, and $\hat{x}$, $\hat{y}$ are orthogonal within each plate. These can be seen in Figure \ref{fig:cs} below.
+	
+	\begin{figure}
+	\centering
+	
+	\caption{Coordinate system definition}
+	\label{fig:cs}
+	\end{figure}
+	
+\par
+	Denoting the coordinate systems as follows
+	\begin{itemize}
+		\item Base $\vect{B}$
+		\item Platform $\vect{P}$
+	\end{itemize}
+	A set of coordinates would then be denoted as below if in the base coordinate system
+	$$\vect{x^B} = \begin{bmatrix}
+		x_{coord} \\ 
+		y_{coord} \\ 
+		z_{coord}
+	\end{bmatrix} $$
+
+\section{Sensor/Actuator Locations}
+\par
+	A Stewart-Gough platform has 6 actuators or sensors (henceforce sensor). These are typically attached radially around the edge of the base and platform.\\
+	Let:
+	\begin{itemize}
+		\item $\vect{b^B}_i = \begin{bmatrix}
+			x_i & y_i & z_i
+			\end{bmatrix}^T$ be the attachment location of the $i_{th}$ sensor to the base. Note it is in the base coordinate system.
+		\item $\vect{p^P}_i = \begin{bmatrix}
+			x_i & y_i & z_i
+			\end{bmatrix}^T$ be the attachment location of the $i_{th}$ sensor to the platform. Note it is in the platform coordinate system.
+	\end{itemize}
+
+\section{Coordinate Transformation}
+\par
+	To do FK or IK, it is necessary to know both ends of each sensor in the same coordinate system. As the platform coordinate system would (usually) be moving with regards to the world, the sensor platform attachment positions are converted to the base coordinate system.
+\par
+	To fully describe the $\vect{P}$ coordinate system with respect to $\vect{B}$, a translation and rotation is needed. Let
+	$$\vect{a} = \begin{bmatrix}
+	x_p & y_p & z_p & \alpha & \beta & \gamma
+	\end{bmatrix}^T $$
+	where:
+	\begin{itemize}
+		\item $\alpha$: Roll angle - rotation about x-axis
+		\item $\beta$: Pitch angle - rotation about y-axis
+		\item $\gamma$: Yaw angle - rotation about z-axis
+		\item $x,y,z$: Position of origin of $P$ coordinate system
+	\end{itemize}
+
+\subsection{Translation Effects}
+\par
+	Hence transform platform attachment coordinates to base coordinate system.
+	$$\vect{p^P}_i \longrightarrow \vect{p^B}_i$$
+	The purely translational effect is achieved through:
+	$$\vect{p^B}_i = \vect{p^P}_i - \begin{bmatrix}
+		x_p \\ 
+		y_p \\ 
+		z_p
+	\end{bmatrix} $$
+	However the effect of the rotation of the platform is more complicated.
+
+\subsection{Euler Angles \& Rotation Matrices}
+\par
+	DO THIS SECTION FIX MEDO THIS SECTION FIX MEDO THIS SECTION FIX MEDO THIS SECTION FIX ME
+	3-2-1 rotation. http://ntrs.nasa.gov/search.jsp?R=19770024290
+	Rotation matrices about the three coordinate axis are:
+	\begin{itemize}
+		\item $\begin{bmatrix}
+			1 \\ 
+			0 \\ 
+			0
+		\end{bmatrix}$ gives rotation matrix, for $\theta_1$, $\begin{bmatrix}
+		1 & 0 & 0 \\ 
+		0 & \cos{\theta_1} & -\sin{\theta_1} \\ 
+		0 & \sin{\theta_1} & \cos{\theta_1}
+		\end{bmatrix} $
+		\item $\begin{bmatrix}
+			0 \\ 
+			1 \\ 
+			0
+		\end{bmatrix}$ gives rotation matrix, for $\theta_2$, $\begin{bmatrix}
+		\cos{\theta_2} & 0 & \sin{\theta_2} \\ 
+		0 & 1 & 0 \\ 
+		-\sin{\theta_2} & 0 & \cos{\theta_2}
+		\end{bmatrix} $
+		\item $\begin{bmatrix}
+			0 \\ 
+			0 \\ 
+			1
+		\end{bmatrix}$ gives rotation matrix, for $\theta_3$, $\begin{bmatrix}
+		\cos{\theta_3} & -\sin{\theta_3} & 0 \\ 
+		\sin{\theta_3} & \cos{\theta_3} & 0 \\ 
+		0 & 0 & 1
+		\end{bmatrix}  $
+	\end{itemize}
+	
+\par
+	Hence, as $\theta_1 = \alpha$, $\theta_2 = \beta$, $\theta_3 = \gamma$, performing a 3-2-1 rotation gives the rotation matrix:
+	$$
+	R_{zyx} = \begin{bmatrix}
+	\cos{\theta_1}\cos{\theta_2} & \cos{\theta_1}\sin{\theta_2}\sin{\theta_3} - \sin{\theta_1}\cos{\theta_2} & \cos{\theta_1}\sin{\theta_2}\cos{\theta_3} + \sin{\theta_1}\sin{\theta_3} \\ 
+	\sin{\theta_1}\cos{\theta_2} & \sin{\theta_1}\sin{\theta_2}\sin{\theta_3}+\cos{\theta_1}\cos{\theta_3} & \sin{\theta_1}\sin{\theta_2}\cos{\theta_3}-\cos{\theta_1}\sin{\theta_3} \\ 
+	-\sin{\theta_2} & \cos{\theta_2}\sin{\theta_3} & \cos{\theta_2}\cos{\theta_3}
+	\end{bmatrix} 
+	$$
+	Using the transformation matrix is just:
+	$$\vect{x}_{uvw} = R_{zyx}\vect{p^P}_i$$
+	
+\subsection{Translation and Rotation}
+\par
+	Hence the platform sensor attachment locations in the base coordinate system are:
+	$$\vect{p^B}_i = \left(R_{zyx}\vect{p^P}_i\right) + \left(\vect{p^B}_i - \begin{bmatrix}
+			x_p \\ 
+			y_p \\ 
+			z_p
+		\end{bmatrix}\right)$$
+	However, FK and IK only need the length of the sensors. Denoting this $\vect{\bar{x}}$:
+	$$\vect{\bar{x}} = \begin{bmatrix}
+	\bar{x} \\ 
+	\bar{y} \\ 
+	\bar{z}
+	\end{bmatrix} = \vect{p^B}_i - \vect{b^B}_i$$ 
+	The length of this vector is simply:
+	$$l_i = \lVert \vect{\bar{x}} \rVert = \sqrt{ \bar{x}^2 + \bar{y}^2 + \bar{z}^2 }$$
+	
+
+	
+\section{Kinematics}
+\par
+	Both forward and inverse kinematics (FK, IK) both involve finding the position of the platform in the base coordinate system, and subsequently finding the sensor lengths. The above derivation is used for both.
+	
+	\subsection{Inverse Kinematics}
+	\par
+		The inverse kinematics problem is finding the actuator lengths for a given platform position. This is simply finding $l_i$ as above. Note that $l_i$ should be checked against possible actuator range to determine whether the platform position is feasible.
+	\par
+		It is possible to rewrite $l_i$ directly in terms of the elements of the rotation matrix $R_{zyx}$ \textemdash this allows $l_i$ to be written directly as a function of $\vect{a},\vect{p^P}_i,\vect{b^B}_i$
+		This may be advantageous when programming in an environment that does not allow matrix algebra. See Nguyen, Zhou \& Antrazi 1991 for details.
+		
+	\subsection{Forward Kinematics}
+	\par
+		The basic idea behind forward kinematics of a stewart-gough platform is to find the position of the platform such that the model sensor lengths are the same as your sensor values. This leads to a quadratic optimisation problem.
+		\subsubsection{Objective Function}
+		\par
+			The objective functions for this problem are related to $l_i$. Denoting $L_i$ as the input length of each sensor, the functions to be minimised are:
+			$$f_i\left(\vect{a}\right) = -\left( l_i^2 - L_i^2 \right)$$
+			$$f_i\left(\vect{a}\right) = -\left(\bar{x_i}^2 + \bar{y_i}^2 + \bar{z_i}^2 - L_i^2 \right)$$
+			As these functions are unimodal (as quadratic functions), optimisation will provide the global minimum (simplifying things a bit \textemdash it gets more complicated in higher dimensions, as we are here).
+			It is reasonable (guessing) to seek to minimise the sum of these functions, ie.
+			$$f\left(\vect{a}\right) = \sum_{i=1}^6 f_i\left(\vect{a}\right)$$
+			Optimisation will have occurred when this value is within a specified tolerance
+		
+		\subsubsection{Constraints}
+		\par
+			It is reasonable to define a series of constraints on the allowed length of each sensor in the model. However, as these constraints take the form
+			$$\bar{x_i}^2 + \bar{y_i}^2 + \bar{z_i}^2 \geq 0$$
+			they are difficult to include in an optimisation scheme. 
+		\subsubsection{Solving using Newton-Raphson Iteration}
+		\par
+			Newton-Raphson iteration is method of solving for a zero (or root) of a function. By taking steps along the tangent of the function at the current point, new points are generated. When the function value is zero, no step is taken, and thus the algorithm ceases. In practice, iteration is stopped when the function value is small, or when the step to be taken is small. The objective function $f_i \left(\vect{a}\right)$ represents the difference in length between the sensor inputs and the sensor lengths found using the position of the platform. Note that this can have multiple solutions; for Newton-Raphson iteration, starting guess is important. Not only does it determine whether the "correct" solution is found, it also effects whether the algorithm will converge, as well as convergence speed.
+		\par
+			Newton-Raphson iteration approaches the zero by taking linear steps along the tangent, as seen in Figure \ref{fig:newton-raphson-example}. The slope of the tangent at $\vect{a}$ is $\nabla_{a} f_i$. Taking a step of size $f_i\left(\vect{a}\right)$:
+			$$ \vect{a}_{new} = \vect{a} + \left[\nabla_{a} f_i\left(\vect{a}\right)\right]^{-1} f_i\left(\vect{a}\right) $$
+			Note that $\left[\nabla_{a} f_i\left(\vect{a}\right)\right]^{-1} f_i\left(\vect{a}\right)$ is equivalent to solving the problem $\nabla_{a} f_i\left(\vect{a}\right) \delta = f_i\left(\vect{a}\right)$ for $\delta$, which is easily solved using existing libraries (eg Matlab, NumPy, etc).
+			\begin{figure}
+			\centering
+			
+			\caption{Example of Newton-Raphson iteration}
+			\label{fig:newton-raphson-example}
+			\end{figure}
+				
+		\subsubsubsection{Derivation of $\nabla_{a} f_i\left(\vect{a}\right)$}
+		\par
+			Hence calculate $\nabla_{a} f_i\left(\vect{a}\right)$. As $f_i\left(\vect{a}\right) = -\left(\bar{x_i}^2 + \bar{y_i}^2 + \bar{z_i}^2 - L_i^2 \right)$:
+			$$\CenteredArraystretch{1.5}
+			\nabla_{a} f_i = \begin{bmatrix}
+				2\bar{x_i}\\
+				2\bar{y_i} \\
+				2\bar{z_i} \\
+				2\bar{x_i}\frac{\partial \bar{x_i}}{\partial \alpha}+
+				2\bar{y_i}\frac{\partial \bar{y_i}}{\partial \alpha}+ 
+				2\bar{z_i}\frac{\partial \bar{z_i}}{\partial \alpha} \\
+				2\bar{x_i}\frac{\partial \bar{x_i}}{\partial \beta}+
+				2\bar{y_i}\frac{\partial \bar{y_i}}{\partial \beta}+
+				2\bar{z_i}\frac{\partial \bar{z_i}}{\partial \beta} \\
+				2\bar{x_i}\frac{\partial \bar{x_i}}{\partial \gamma}+
+				2\bar{y_i}\frac{\partial \bar{y_i}}{\partial \gamma}+
+				2\bar{z_i}\frac{\partial \bar{z_i}}{\partial \gamma} \\
+			\end{bmatrix} = 
+			\begin{bmatrix}
+				2\bar{x_i} \\
+				2\bar{y_i} \\
+				2\bar{z_i} \\
+				2\left(\bar{x_i}\frac{\partial \bar{x_i}}{\partial \alpha} + \bar{y_i}\frac{\partial \bar{y_i}}{\partial \alpha} + \bar{z_i}\frac{\partial \bar{z_i}}{\partial \alpha}\right) \\
+				2\left(\bar{x_i}\frac{\partial \bar{x_i}}{\partial \beta} + \bar{y_i}\frac{\partial \bar{y_i}}{\partial \beta} + \bar{z_i}\frac{\partial \bar{z_i}}{\partial \beta}\right) \\
+				2\left(\bar{x_i}\frac{\partial \bar{x_i}}{\partial \gamma} + \bar{y_i}\frac{\partial \bar{y_i}}{\partial \gamma} + \bar{z_i}\frac{\partial \bar{z_i}}{\partial \gamma}\right) \\
+			\end{bmatrix}$$
+		
+		\par
+			Note that the only components of $\vect{x_{i}}$ which are dependant on the angles $\alpha, \beta, \gamma$ come from the $\vect{x_{uvw}} = R_{zyx}\vect{p^P}_i$ terms. Hence using the normal derivative rules, the partial derivatives of $R_{zyx}$ with respect to the variables in $\alpha$ are:
+			$$\frac{\partial R_{zyx}}{\partial \alpha} = 
+			\begin{bmatrix}
+			 0 & \cos (\alpha ) \cos (\gamma ) \sin (\beta )+\sin (\alpha ) \sin (\gamma ) & \cos
+			   (\gamma ) \sin (\alpha )-\cos (\alpha ) \sin (\beta ) \sin (\gamma ) \\
+			 0 & \cos (\gamma ) \sin (\alpha ) \sin (\beta )-\cos (\alpha ) \sin (\gamma ) & -\cos
+			   (\alpha ) \cos (\gamma )-\sin (\alpha ) \sin (\beta ) \sin (\gamma ) \\
+			 0 & \cos (\beta ) \cos (\gamma ) & -\cos (\beta ) \sin (\gamma ) \\
+			\end{bmatrix} $$
+			
+			$$\frac{\partial R_{zyx}}{\partial \beta} = 
+			\begin{bmatrix}
+			 -\cos (\alpha ) \sin (\beta ) & \cos (\alpha ) \cos (\beta ) \sin (\gamma ) & \cos
+			   (\alpha ) \cos (\beta ) \cos (\gamma ) \\
+			 -\sin (\alpha ) \sin (\beta ) & \cos (\beta ) \sin (\alpha ) \sin (\gamma ) & \cos
+			   (\beta ) \cos (\gamma ) \sin (\alpha ) \\
+			 -\cos (\beta ) & -\sin (\beta ) \sin (\gamma ) & -\cos (\gamma ) \sin (\beta ) \\
+			\end{bmatrix} $$
+			
+			$$\frac{\partial R_{zyx}}{\partial \gamma} = 
+			\begin{bmatrix}
+			 -\cos (\beta ) \sin (\alpha ) & -\cos (\alpha ) \cos (\gamma )-\sin (\alpha ) \sin
+			   (\beta ) \sin (\gamma ) & \cos (\alpha ) \sin (\gamma )-\cos (\gamma ) \sin (\alpha )
+			   \sin (\beta ) \\
+			 \cos (\alpha ) \cos (\beta ) & \cos (\alpha ) \sin (\beta ) \sin (\gamma )-\cos (\gamma
+			   ) \sin (\alpha ) & \cos (\alpha ) \cos (\gamma ) \sin (\beta )+\sin (\alpha ) \sin
+			   (\gamma ) \\
+			 0 & 0 & 0 \\
+			\end{bmatrix} $$
+			Note that as $\nabla_{a}\vect{x}_{uvw} = \nabla_{a}R_{zyx}\vect{p^P}_i$ these lead to the following. Denoting $p_{ix}^P$ as the $x$ component of $\vect{p^P}_i$ (and etc):
+			$$\frac{\partial\vect{x}_{uvw}}{\partial \alpha} = 
+			\begin{bmatrix}
+				 (\cos (\alpha ) \cos (\gamma ) \sin (\beta )+\sin (\alpha ) \sin (\gamma ))
+				   p_{iy}^P+(\cos (\gamma ) \sin (\alpha )-\cos (\alpha ) \sin (\beta ) \sin
+				   (\gamma )) p_{iz}^P \\
+				 (\cos (\gamma ) \sin (\alpha ) \sin (\beta )-\cos (\alpha ) \sin (\gamma ))
+				   p_{iy}^P+(-\cos (\alpha ) \cos (\gamma )-\sin (\alpha ) \sin (\beta ) \sin
+				   (\gamma )) p_{iz}^P \\
+				 \cos (\beta ) \cos (\gamma ) p_{iy}^P-\cos (\beta ) \sin (\gamma )
+				   p_{iz}^P \\
+			\end{bmatrix}$$
+			
+			$$\frac{\partial\vect{x}_{uvw}}{\partial \beta} = 
+			\begin{bmatrix}
+				 -\cos (\alpha ) \sin (\beta ) p_{ix}^P+\cos (\alpha ) \cos (\beta ) \sin (\gamma
+				   ) p_{iy}^P+\cos (\alpha ) \cos (\beta ) \cos (\gamma ) p_{iz}^P \\
+				 -\sin (\alpha ) \sin (\beta ) p_{ix}^P+\cos (\beta ) \sin (\alpha ) \sin (\gamma
+				   ) p_{iy}^P+\cos (\beta ) \cos (\gamma ) \sin (\alpha ) p_{iz}^P \\
+				 -\cos (\beta ) p_{ix}^P-\sin (\beta ) \sin (\gamma ) p_{iy}^P-\cos (\gamma
+				   ) \sin (\beta ) p_{iz}^P \\
+			\end{bmatrix}$$
+			
+			$$\frac{\partial\vect{x}_{uvw}}{\partial \gamma} = 
+			\begin{bmatrix}
+				 -\cos (\beta ) \sin (\alpha ) p_{ix}^P+(-\cos (\alpha ) \cos (\gamma )-\sin
+				   (\alpha ) \sin (\beta ) \sin (\gamma )) p_{iy}^P+(\cos (\alpha ) \sin (\gamma
+				   )-\cos (\gamma ) \sin (\alpha ) \sin (\beta )) p_{iz}^P \\
+				 \cos (\alpha ) \cos (\beta ) p_{ix}^P+(\cos (\alpha ) \sin (\beta ) \sin (\gamma
+				   )-\cos (\gamma ) \sin (\alpha )) p_{iy}^P+(\cos (\alpha ) \cos (\gamma ) \sin
+				   (\beta )+\sin (\alpha ) \sin (\gamma )) p_{iz}^P \\
+				 0 \\
+			\end{bmatrix}$$
+			
+		\subsubsubsection{$\nabla_{a} f_i\left(\vect{a}\right)$ is}
+		\par
+			It is not obvious, however that this simplifies $\nabla_{a} f_i\left(\vect{a}\right)$. Denote $u_i, v_i, w_i$ as the components of $\vect{x}_{uvw}$.
+			$$\CenteredArraystretch{1.2}
+			\nabla_{a} f_i\left(\vect{a}\right) = 
+			\begin{bmatrix}
+				2\bar{x_i}\\
+				2\bar{y_i} \\
+				2\bar{z_i} \\
+				2 p_{iy}^P \left[ \left( \bar{x_i} - u_i\right)\left[R_{zyx}\right]_{1,3} + \left(\bar{y_i} - v_i\right)\left[R_{zyx}\right]_{2,3} + \left(\bar{z_i} -w_i\right)\left[R_{zyx}\right]_{3,3} \right] \\
+				2\left[ \left(\left( \bar{x_i} - u_i\right)\cos{\alpha} + \left(\bar{y_i} - v_i\right) \sin{\alpha} \right) w_i - \left(p_{ix}^P \cos{\beta} + p_{iy}^P \sin{\beta}\sin{\gamma}\right)\left(\bar{z_i} -w_i\right) \right] \\
+				2 \left[\left(\bar{x_i} - u_i\right)v_i + \left(\bar{y_i} - v_i\right) u_i \right]
+			\end{bmatrix}$$
+
+		\par
+			Remember Newton-Raphson iteration can be written as:
+			$$\vect{a}_{new} = \vect{a} + \left[\nabla_{a} f_i\left(\vect{a}\right)\right]^{-1} f_i\left(\vect{a}\right)$$
+			Convergence is achieved when there is no significant change in the value of $\vect{a}$ \textemdash when $\sum_{i=1}^6 \left[\nabla_{a} f_i\left(\vect{a}\right)\right]^{-1} f_i\left(\vect{a}\right)  \leq \text{a tolerance}$.
+			
+		\par
+			Newton-Raphson iteration, as used in this instance, is not actually finding the minimum of a generic quadratic function. It is actually finding a zero (or root) of the function. However due to the nature of this problem, as well as it's constraints, these come to the same thing.
+			
+	\section{Code}
+	\par
+		Python code for both inverse and forward kinematics is available. This code heavily uses the NumPy library, and is vectorized (not using for loops) to a reasonable extent \textemdash hopefully enough to allow real time use.
+		\begin{itemize}
+			\item Download Inverse Kinematics
+			\item Download Forward Kinematics
+		\end{itemize}
+		INVERSE KINEMATICS NOT AVAILABLE YET
+		LINK LINK LINK LINK LINK LINK
+		
+	\section{References}
+	\par
+		Nguyen C. C, Zhou Z, Antrazi S. S 1991, \emph{Efficient Computation of Forward Kinematics and Jacobian Matrix of a Stewart Platform-based Manipulator: IEEE Proceedings of Southeastcon '91}, Williamsburg, VA, 7-10 April 1991. 
+\end{document}
