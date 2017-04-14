@@ -1,0 +1,104 @@
+<Jak_o_Shadows> I have forgotten statics.
+<Jak_o_Shadows> I have a stewart platform (https://upload.wikimedia.org/wikipedia/commons/a/a7/Hexapod_general_Anim.gif), and am trying to work out the force in each leg.
+<dirac> [ 404 Not Found ] - upload.wikimedia.org
+<Jak_o_Shadows> Those are pin joints, so no moments at the joints.
+<Jak_o_Shadows> I'm assuming a 3D force, and 3D moment at the centre of the upper platform
+<Jak_o_Shadows> Starting to get the feeling it's over-constrained, or something
+<PlanckWalk> Jak_o_Shadows: Yes, it would be
+<Jak_o_Shadows> But if I ignore the moment, it isn't?
+<Jak_o_Shadows> I can then just assemble the other 3 equations (as I have 3 from sum(froces)) fro moments about the joint locations?
+<PlanckWalk> Hmm actually maybe it isn't.
+<Jak_o_Shadows> Well, to put it this way, my code isn't working :P
+<PlanckWalk> For a given position of platform you have 6 fixed directions for the support forces, so the 6 variable magnitudes should match up with the 6 components of force and moment
+<Jak_o_Shadows> Yeah. That was my thoughts.
+<Jak_o_Shadows> I might just be assembling the A matrix (in Ax = b) incorrectly
+<Jak_o_Shadows> https://bpaste.net/show/efb4146c5e9a is my code.
+<dirac> [ show at bpaste ] - bpaste.net
+<Jak_o_Shadows> Basically, I am getting the vector of each of te leg. Normalizing it, and saying that is how the leg force relates to the leg force components.
+<Jak_o_Shadows> Then the upper half of the A matrix is just those components, pretty much
+<Jak_o_Shadows> (ie. b = [Fx, Fy, Fz, Mx, My, Mz])
+<-> fstd_ is now known as fstd
+<Jak_o_Shadows> Then for the moment equations, I'm getting the lever arm by doing radial position cross that normalized vector of the legs
+<PlanckWalk> Do you know that the platform->base coordinate transformation works?
+<Jak_o_Shadows> PlanckWalk, pretty sure. I've done forward kinematics and inverse kinematics with basically the same code before.
+<PlanckWalk> Jak_o_Shadows: I don't know what your assumptions are about bPos and pPos at the moment.  I think I've deciphered the others
+<Jak_o_Shadows> bPos and pPos are the location of the joint locations, with respect to the base or platform
+<PlanckWalk> Ah
+<Jak_o_Shadows> So like, radius * (cos (angle), sin(angle), whree angle is linispace(0, 360, 6)
+<PlanckWalk> Err, is that correct?  They're evenly spaced?
+<Jak_o_Shadows> In this case, yes.
+<PlanckWalk> So in a "neutral" position the legs woudl all be parallel?
+<Jak_o_Shadows> I mean, I can change that.
+<Jak_o_Shadows> yeah.
+<PlanckWalk> That woudl make the system very unstable
+<PlanckWalk> I think the A matrix would be singular in that case
+<Jak_o_Shadows> Hmm. Yeah.
+<Jak_o_Shadows> That has beena problem.
+<Jak_o_Shadows> I can avoid that. I'm using this to develop a design, so didn't really want to limit myself that way
+<Jak_o_Shadows> Even so, if I change it slightly, it's no-longer singular.
+<Jak_o_Shadows> But it's kinda nonsensical
+<PlanckWalk> If you change it slightly then it will likely still be very ill-conditioned
+<PlanckWalk> So you may end up with solutions that have huge forces
+<Jak_o_Shadows> Yeah, that
+<Jak_o_Shadows> aha.
+<Jak_o_Shadows> Does this sound reasonable? For base angles [15, 105, 135, 225, 255, 345], platform angles [-30, 30, 90, 150, 210, 270], with platform radius 0.75 of the upper radius.
+<Jak_o_Shadows> With the load F = [0,0, 1], M = [0, 0, 0], forces = [1.52, -1.34, 1.52, -1.34, 1.52, -1.34]
+<PlanckWalk> Hmm, no that doesn't seem good.
+<Jak_o_Shadows> My concern there is that surely the forces being identical be better?
+<PlanckWalk> It's supporting a simple downward load with no torque but three of the legs are under tension
+<PlanckWalk> I presume that's for the case of platform just level and in "standard" orientation?
+<Jak_o_Shadows> ok, it's not downward, it's upward (the force).
+<Jak_o_Shadows> But same issue really
+<Jak_o_Shadows> yeah, just level
+<PlanckWalk> It is a bit concerning that the legs are "twisted" there
+<PlanckWalk> All the base angles are greater than the platform angles
+<Jak_o_Shadows> It's not an uncommon configuration.
+<PlanckWalk> So that woudl probably be the problem
+<Jak_o_Shadows> I have no real intuition on what effect it has though
+<PlanckWalk> Not uncommon? O.o
+<ilyanov> the average orbital radius of an electron around a berylium atom is 1.05 x10^-10 m
+<PlanckWalk> Jak_o_Shadows: It certainly wouldn't look anything like the diagram you gave as an example
+<Jak_o_Shadows> PlanckWalk, yeah. Do you know what is uncomon? Any design process in making these things
+<PlanckWalk> I'd start with something similar to the diagram you showed
+<ilyanov> While the radius of the nucleus of the berylium is 10^-15 m or so
+<Jak_o_Shadows> Yeah. I'm trying to fix up my visualisation code
+<ilyanov> If we associate the "electron" with its schroedinger wave, and dispatch with any notions of a "point particle",  then how can we square this version of thing with the existence of electron capture?
+<ilyanov> http://hyperphysics.phy-astr.gsu.edu/hbase/Nuclear/radact2.html#c3
+<dirac> [ Radioactivity ] - hyperphysics.phy-astr.gsu.edu
+<PlanckWalk> E.g. base angles  [15, 105, 135, 225, 255, 345]  looks fine, but the platform angles need to be rotated
+<ilyanov> In the case of electron capture,  we would expect that the electron must be isolated in a location in space which is roughly 64 x 10^3  times smaller than its compton wavelength
+<ilyanov> 0.0000159 times the peak-to-trough of its schroedinger wave
+<ilyanov> sorry,  peak-to-peak rather
+<PlanckWalk> E.g. platform angles more like  [45, 75, 165, 195, 285, 315]
+<PlanckWalk> Jak_o_Shadows: So it's possible that the code was correct, but the "twisted" legs meant that large forces in opposite directions were needed to counteract the twist.
+<Jak_o_Shadows> Oh yeah. I see.
+<Jak_o_Shadows> I'm a bit fuzzy on why I can't have straight up/down legs?
+<Jak_o_Shadows> Why does that lead to a singular/poorly conditioned matrix?
+<Jak_o_Shadows> Could I take moments around a different point to solve that?
+<PlanckWalk> No
+<PlanckWalk> For a simple example, suppose that there's a slight twisting torque on the platform.
+<PlanckWalk> None of the forces from the legs have any component of moment in that direction
+<PlanckWalk> So the system has no solution
+<Jak_o_Shadows> ah! In reality, it would actually twist, and then there would be components.
+<Jak_o_Shadows> But i'm not considering that.
+<PlanckWalk> Conversely, if there is no component of torque in that direction then there are infinitely many solutions
+<PlanckWalk> The linear system corresponds to hyperlanes that are very nearly parallel
+<PlanckWalk> Well, not necessarily parallel
+<PlanckWalk> But their intersections are "degenerate"
+<PlanckWalk> Instead of 6 hyperplanes intersecting in a point, they intersect in a line.
+<PlanckWalk> If you perturb them very slightly, the intersection point might be anywhere along that line.
+<PlanckWalk> Or near to it, rather
+<PlanckWalk> And since the line is infinite, you may get very large solutions
+<Jak_o_Shadows> So in conclusion, there is a reason why they tend to group the joints together closely?
+<PlanckWalk> It's not so much grouping the joints closely as trying to separate the angles of the legs
+<PlanckWalk> Also it turns out that to reduce the forces, it's better if the angles alternate
+<PlanckWalk> The platform angles [-30, 30, 90, 150, 210, 270] give you a fairly well-conditioned solution, but since all the legs are pointing anticlockwise, the "natural" state of all forces being positive results in a net twisting torque
+<PlanckWalk> So if you want zero torque, they will need to oppose each other to some extent
+<PlanckWalk> Hence forces likes 1.5 & -1.3 instead of more like 0.2 each
+<Jak_o_Shadows> yes!
+<Jak_o_Shadows> I just got 0.21
+<Jak_o_Shadows> I also have a nice picture
+<PlanckWalk> Woot! :-)
+<Jak_o_Shadows> http://pasteall.org/pic/show.php?id=113002
+<Jak_o_Shadows> A configuration like that DOES give me teh 0.21 for all of them
+<PlanckWalk> Aha :-)
