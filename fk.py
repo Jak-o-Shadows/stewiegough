@@ -9,6 +9,9 @@ import math
 import numpy
 import matplotlib.pyplot as plt
 
+#Load S-G platform configuration and convert to numpy arrays
+from configuration import *
+
 
 def ik(bPos, pPos, a, ik=True):
     """Finds leg lengths L such that the platform is in position defined by
@@ -36,7 +39,7 @@ def ik(bPos, pPos, a, ik=True):
     #Hence orientation of platform wrt base
     
     uvw = numpy.zeros(pPos.shape)
-    for i in xrange(6):
+    for i in range(6):
         uvw[i, :] = numpy.dot(Rzyx, pPos[i, :])
         
     
@@ -69,7 +72,7 @@ def platformLegPosition(pPos, a):
     
     #Hence orientation of platform legs wrt base
     uvw = numpy.zeros(pPos.shape)
-    for i in xrange(6):
+    for i in range(6):
         uvw[i, :] = numpy.dot(Rzyx, pPos[i, :])
         uvw[i, :] += a[0:3]
     return uvw
@@ -115,7 +118,7 @@ def fk(bPos, pPos, L):
         #Hence orientation of platform wrt base
         
         uvw = numpy.zeros(pPos.shape)
-        for i in xrange(6):
+        for i in range(6):
             uvw[i, :] = numpy.dot(Rzyx, pPos[i, :])
             
         
@@ -132,14 +135,14 @@ def fk(bPos, pPos, L):
         sumF = numpy.sum(numpy.abs(f))
         if sumF < tol_f:
             #success!
-            print "Converged! Output is in 'a' variable"
+            print("Converged! Output is in 'a' variable")
             break
         
         #As using the newton-raphson matrix, need the jacobian (/hessian?) matrix
         #Using paper linked above:
         dfda = numpy.zeros((6, 6))
         dfda[:, 0:3] = 2*(xbar + uvw)
-        for i in xrange(6):
+        for i in range(6):
             #Numpy * is elementwise multiplication!!
             #Indicing starts at 0!
             #dfda4 is swapped with dfda6 for magic reasons!  
@@ -152,13 +155,13 @@ def fk(bPos, pPos, L):
         delta_a = numpy.linalg.solve(dfda, f)
     
         if abs(numpy.sum(delta_a)) < tol_a:
-            print "Small change in lengths -- converged?"
+            print("Small change in lengths -- converged?")
             break
         a = a + delta_a
     
-    #for i in xrange(3,6):
+    #for i in range(3,6):
     #    a[i] = math.degrees(a[i])
-    print "In %d iterations" % (iterNum)
+    print("In %d iterations" % (iterNum))
     return a
     
     
@@ -184,7 +187,7 @@ def forces(bPos, pPos, a, M, F):
 
 
     vec = numpy.zeros(bPos.shape)
-    for i in xrange(6):
+    for i in range(6):
         #Get direction vector of leg
         vec[i, :] = uvw[i, :] - bPos[i, :]
         #normalise it
@@ -195,14 +198,14 @@ def forces(bPos, pPos, a, M, F):
     #   These give 3 equations (one each in the cardinal directions), in the 6
     #   unknowns of the leg forces
     A = numpy.zeros((6, 6))
-    for i in xrange(6):
+    for i in range(6):
         A[0:3, i] = numpy.transpose(vec[i, :])
 
     #Moment equations
     #   These give 3 equations, in the 6 unknowns of the leg forces.
     #   More complicated than the force - have to do the whole force at a
     #   distance makes a moment thing
-    for i in xrange(6):
+    for i in range(6):
         leverArms = numpy.cross(pPos[i, :], vec[i, :])
         A[3:, i] = leverArms
 
@@ -212,6 +215,31 @@ def forces(bPos, pPos, a, M, F):
 
     legForces = numpy.linalg.solve(A, b)
     return legForces
+
+
+def legAngle(lengths, lowerLength, upperLength):
+    """
+        Find the angle of the triangle formed by lengths, lowerLenght, and upperLength
+      |\
+      | \ 
+      |  \  upper
+      |   \
+      |    \
+   L  |     \  the
+      |     /  angle
+      |    /
+      |   /
+      |  /  lower
+      | /
+      |/
+        
+    """
+    legLengthsSquared = numpy.square(lengths)
+    #woohoo, cosine rule
+    cosAngle = (legLengthsSquared - lowerLength**2 - upperLength**2)/(-2*lowerLength*upperLength)
+    angles = numpy.arccos(cosAngle)
+    return angles
+
 
         
 def centreTorque(bPos, pPos, a, legForces):
@@ -226,7 +254,10 @@ def centreTorque(bPos, pPos, a, legForces):
     
     lowerLength = (1/3.0)*height * 1e-3
     upperLength = math.floor(1e3*calcLegLengths(bPos, pPos, a)[0][0])/1e3
-    print "Legs: ", 1e3*lowerLength, 1e3*upperLength
+    
+    lowerLength = 190e-3
+    upperLength = 180e-3
+    print("Legs: ", 1e3*lowerLength, 1e3*upperLength)
     
     #lowerLength = 30e-3
     #upperLength = 110e-3
@@ -243,7 +274,7 @@ def centreTorque(bPos, pPos, a, legForces):
     angles = numpy.zeros((6, 1))
     baseAngles = numpy.zeros((6, 1))
     moments = numpy.zeros((6, 1))
-    for i in xrange(6):
+    for i in range(6):
         #Calculate angle of motor
         cosAngle = (legLengthsSquared[i] - lowerLength**2 - upperLength**2)/(-2*lowerLength*upperLength)
         angles[i] = math.acos(cosAngle)
@@ -283,7 +314,7 @@ def calcLegLengths(bPos, pPos, a):
     legLengthsSquared = numpy.sum(numpy.square(legs),1)
     
     lengths = numpy.zeros((6, 1))
-    for i in xrange(6):
+    for i in range(6):
         lengths[i] = math.sqrt(legLengthsSquared[i] + lowerLength**2 - 2*math.sqrt(legLengthsSquared[i])*lowerLength*math.cos(base0))
         
     return lengths
@@ -293,67 +324,68 @@ def calcLegLengths(bPos, pPos, a):
     
 def main():   
 
-	#Load S-G platform configuration and convert to numpy arrays
-    from configuration import *
+
     bPos = numpy.array(bPos)
     pPos = numpy.array(pPos)
     #Convert to m
     bPos = (1e-3)*bPos
     pPos = (1e-3)*pPos
     
-    print "base joint positions"
-    print bPos
-    print "platform joint positions"
-    print pPos
+    print("base joint positions")
+    print(bPos)
+    print("platform joint positions")
+    print(pPos)
 
     
-    #L = numpy.array([122.759, 122.759, 122.759, 122.759, 122.759, 122.759]).transpose()
-    #a = fk(bPos, pPos, L)
-    #print a
-    #print ik(bPos, pPos, a)
-    #a = numpy.array([0,0,0, 1, 0, 0]).transpose()
-    #print ik(bPos, pPos, a)
+    L = numpy.array([122.759, 122.759, 122.759, 122.759, 122.759, 122.759]).transpose()
+    a = fk(bPos, pPos, L)
+    print(a)
+    print(ik(bPos, pPos, a))
+    a = numpy.array([0,0,0, 1, 0, 0]).transpose()
+    print(ik(bPos, pPos, a))
     
-    #Other test
-#    lengths = []
-#    t = numpy.arange(0, math.pi/6, 0.01)
-#    for i in t:
-#        a = numpy.array([0,0,0, i, 0, 0]).transpose()
-#        print a
-#        l = ik(bPos, pPos, a)
-#        lengths.append(l)
-#    angle = []
-#    for L in lengths:
-#        print "L", L
-#        a = fk(bPos, pPos, L)
-#        angle.append(a[3])
-#    plt.plot(t, angle)
-#    plt.xlabel('Input Angle (rad)')
-#    plt.ylabel('Calculated Angle')
-#    plt.show()
-#    plt.plot(t, angle-t)
-#    plt.xlabel('Input Angle (rad)')
-#    plt.ylabel('Error (rad)')
-#    plt.show()
+#    Other test
+    lengths = []
+    t = numpy.arange(160e-3, 210e-3, 1e-3)
+    for i in t:
+        a = numpy.array([0,0,i, 0, 0, 0]).transpose()
+        print(a)
+        l = ik(bPos, pPos, a)
+        lengths.append(l)
+        print([math.degrees(x) for x in legAngle(l, 190e-3, 180e-3)])
+    angle = []
+    for L in lengths:
+        #print("L", L
+        a = fk(bPos, pPos, L)
+        angle.append(a[2])
+    plt.plot([x*1e3 for x in t], [x*1e3 for x in angle])
+    plt.xlabel('Input Height (mm)')
+    plt.ylabel('Calculated Height (mm)')
+    plt.show()
+    plt.plot([x*1e3 for x in t], [1e3*x for x in (angle-t)])
+    plt.xlabel('Input Height (mm)')
+    plt.ylabel('Error (mm)')
+    plt.show()
     a = [0, 0, height*1e-3, 0, 0, 0]
-    print "Acceptable upper leg lengths (mm)"
-    print 1e3*calcLegLengths(bPos, pPos, a)
+#    print("Acceptable upper leg lengths (mm)"
+#    print(1e3*calcLegLengths(bPos, pPos, a)
 
     
     
     M = [0, 0, 0]
     F = [0, 1*9.81, 0]
+    #F = [0, 0, 1*9.81]
     legForces= forces(bPos, pPos, a, M, F)
-    print "Leg forces (N)"
-    print legForces
-    print "Centre joint torque (Nm)"
+    print("Leg forces (N)")
+    print(legForces)
+    print("Centre joint torque (Nm)")
     torques = centreTorque(bPos, pPos, a, legForces)
-    print torques
-    print "Centre joint torque (N mm)"
-    print 1e3*torques
-    print "Little 9g servo torque is 1.6 kg/cm, or"
-    print 1.6*9.81*(10e-3), "Nm"
-    print 1.6*9.81*(10e-3) * 1e3, "N mm"
+    print(torques)
+    print("Centre joint torque (N mm)")
+    print(1e3*torques)
+    print("Little 9g servo torque is 1.6 kg/cm, or")
+    print(1.6*9.81*(10e-3), "Nm")
+    print(1.6*9.81*(10e-3) * 1e3, "N mm")
 
 
 
