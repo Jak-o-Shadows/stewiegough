@@ -6,9 +6,7 @@ Created on Sun Jan 10 14:24:01 2016
 """
 import math
 import numpy
-
-
-import fk
+import numpy as np
 
 
 import time
@@ -20,62 +18,189 @@ def rue(bPos, pPos, s, c, w, sigma):
     pass
     return None
     
-    
-def ik(bPos, pPos, s, c, w, a):
-    
-    
-    
-    
-    phi = a[3]
-    th = a[4]
-    psi = a[5]
-    #Must translate platform coordinates into base coordinate system
-    #Calculate rotation matrix elements
-    cphi = math.cos(phi)
-    sphi = math.sin(phi)
-    cth = math.cos(th)
-    sth = math.sin(th)
-    cpsi = math.cos(psi)
-    spsi = math.sin(psi)   
+def rotMat(roll, pitch, yaw):
+    cphi = np.cos(pitch)
+    sphi = np.sin(pitch)
+    cth = np.cos(roll)
+    sth = np.sin(roll)
+    cpsi = np.cos(yaw)
+    spsi = np.sin(yaw)   
     #Hence calculate rotation matrix
     #Note that it is a 3-2-1 rotation matrix
     Rzyx = numpy.array([[cpsi*cth, cpsi*sth*sphi - spsi*cphi, cpsi*sth*cphi + spsi*sphi] \
                         ,[spsi*cth, spsi*sth*sphi + cpsi*cphi, spsi*sth*cphi - cpsi*sphi] \
                         , [-sth, cth*sphi, cth*cphi]])
-    #Hence platform sensor points with respect to the base coordinate system
-    xbar = a[0:3] - bPos
+    return Rzyx
     
-    #Hence orientation of platform wrt base
+def ik(baseCentre, pPos, s, c, w, a):
+    """
+    :param baseCentre:
+    :param pPos:
+    :param a:
     
+    
+    """
+
+    Rzyx = rotMat(a[3], a[4], a[5])
+    # Hence platform centre with respect to the base coordinate system
+    xbar = a[0:3] - baseCentre
+    
+    # Hence orientation of platform points wrt platform centre
     uvw = numpy.zeros(pPos.shape)
-    for i in xrange(6):
-        uvw[i, :] = numpy.dot(Rzyx, pPos[i, :])
+    for i in range(pPos.shape[0]):
+        uvw[i, :] = Rzyx @ pPos[i, :]
+            
+    # Hence location of platform points wrt baseCentre
+    upper = xbar+uvw
+
+    return upper
+    
+def circleCircleIntersection(c1, r1, c2, r2, n):
+    """
+    :param c1: Centre of circle 1
+    :param r1: Radius of circle 1
+    :param c2: Centre of circle 2
+    :param r2: Radius of circle 2
+    :param n: Normal of the plane of the two circles
+    
+    Returns the intersection points of the two circles
+    """
+    # From stackoverflow: https://gamedev.stackexchange.com/questions/75756/sphere-sphere-intersection-and-circle-sphere-intersection
+    
+    planeTangentVec = np.cross(c1-c2, n)
+    t = planeTangentVec/np.sqrt(np.sum(np.square(planeTangentVec)))
+    # Find the location of the midpoint of the chord
+    #   connecting the two intersection points
+    d2 = np.sum(np.square(c1-c2))
+    h = 1/2.0 + (r1**2 -r2**2)/(2*d2)
+    c_i = c1 + h*(c2-c1)
+    r_i = np.sqrt(r1**2 - d2*h**2)
+    
+    p1 = c_i -t*r_i
+    p2 = c_i +t*r_i
+    
+    return(p1, p2)
+    
+def circleSphereIntersection(c_c, r_c, n_c, c_s, r_s):
+    """
+    :param c_c: Centre of the circle
+    :param r_c: Radius of the circle
+    :param n_c: A normal vector of the circle
+    :param c_s: Centre of the sphere
+    :param r_s: Radius of the sphere
+    
+    Find the points where the circle intersects the sphere
+    """
+    
+    # From stackoverflow: https://gamedev.stackexchange.com/questions/75756/sphere-sphere-intersection-and-circle-sphere-intersection
+
+    # d = distance from sphere centre the plane cuts the sphere
+    d = np.dot(n_c, c_c - c_s)
+    if np.abs(d) > r_s:
+        return ValueError("Circle does not intersect sphere")
+    
+    # Forms a new circle
+    c_p = c_s + d*n_c
+    r_p = np.sqrt(r_s**2 - d**2)
+    
+    # Problem collapses to circle-circle intersection
+    if d == r_s:
+        # Single point
+        return (c_p, c_p)
+    else:
+        return circleCircleIntersection(c_c, r_c, c_p, r_p, n_c)
+    
+    
+    
+    
+    
+def legPos(bPos, pPos, s, c, legYawAngle=None):
+    """
+    
+    Calculate the knee/midJoint position of each leg, and the lower leg angle
+    with respect to the horizontal.
+    """
+    virtualLegs = pPos - bPos
+    # Virtual leg lengths
+    l_i = numpy.sqrt(numpy.sum(numpy.square(virtualLegs),1))
+    
+    # Angle between virtual leg and lever
+    cosAlpha = (np.square(s) + np.square(l_i) - np.square(c))/(2*s*l_i)
+    alpha = np.arccos(cosAlpha)
+    
+    if legYawAngle is None:
+        legYawAngle = np.arctan2(bPos[:, 0], bPos[:, 1])
+    
+    # Calculate the angle of the lower leg/lever arm
+    #   The lever arm end is constrained to a circle
+    #   The upper arm is constrained to a sphere about the upper pos
+    #   => intersection
+    #   This will return two points - want the one that leads to legs like:
+    #   \
+    #    \     /
+    #     \   /
+    #      \./
+    #       rather than:
+    #   
+    #       /.\
+    #      /   \
+    #     /     \
+    #    /
+    midJoint = np.full(pPos.shape, np.nan)
+    leverAngles = np.full(legYawAngle.shape, np.nan)
+    for legNum in range(pPos.shape[0]):
+        #print("\n", legNum)
+
+        planeYawAngle = legYawAngle[legNum]
+        #print("plane yaw angle", planeYawAngle)
+    
+        upperCentre = pPos[legNum, :]
+        lowerCentre = bPos[legNum, :]
+        upperLength = c[legNum]
+        lowerLength = s[legNum]
+        lowerNorm = np.array([np.sin(planeYawAngle), -np.cos(planeYawAngle), 0])
+        points = circleSphereIntersection(lowerCentre, lowerLength, lowerNorm, upperCentre, upperLength)
+        #print(points)
         
-    
-    l_i = numpy.sqrt(numpy.sum(numpy.square(xbar + uvw),1))
-    
-    #arm end location on platform
-    upper = pPos + (xbar+uvw)
-    
-    #Looking at xz plane only:
-    #Hence ignore y component
-    l_projected = numpy.sqrt(numpy.square(l_i) + numpy.square(l_i))
-    print l_projected
-    
-    #angle betweern l_i & pivot arm A_i
-    l_iA_i = numpy.arccos((numpy.square(l_projected) + numpy.square(s) - numpy.square(c))/(2*l_projected*c))
-    
-    #Angle between z axis & projected l_i
-    chi = numpy.arctan2(upper[:, 0] - bPos[:, 0], upper[:, 2] - bPos[:, 2])
-    print chi
-    
-    sigma = math.pi/2 - chi - l_iA_i
-    print sigma
-    
-    print numpy.degrees(sigma)
-    print fk(bPos, pPos, s, c, w, sigma)
-    
-    
+        #Then calculate angle in the plane of the lever arm
+        lowerTangent = rotMat(0, 0, planeYawAngle) @ np.array([1, 0, 0])
+        #print("tangentVec", lowerTangent)
+        # Use the dot product to calculate the angle
+        angles = np.full((2,), np.nan)
+        midJointAngles = np.full((2,), np.nan)
+        for i, p in enumerate(points):
+            p = p - bPos[legNum, :]
+            pNorm = p/np.sqrt(np.sum(np.square(p)))
+            #print(p)
+            #print(p/np.sqrt(np.sum(np.square(p))))
+            # Calculate the first angle - wrt the horizontal
+            cosLeverAngle = np.dot(pNorm, lowerTangent)
+            #print(cosLeverAngle)
+            leverAngle = np.arccos(cosLeverAngle)
+            angles[i] = leverAngle
+            #print("leverAngle", np.degrees(leverAngle))
+            
+            # Choose which of the two solutions to pick
+            #   Calculate the angle at the midjoint
+            #       lower -> midJoint -> upper
+            #   Use the dot-product
+            u = pPos[legNum, :] - p
+            uNorm = u/np.sqrt(np.sum(np.square(u)))
+            midCosLeverAngle = np.dot(pNorm, uNorm)
+            midJointAngle = np.arccos(midCosLeverAngle)
+            midJointAngles[i] = midJointAngle
+
+        midJointAngles = np.mod(midJointAngles, np.pi*2)  # Wrap to 0->360 deg
+        #print(legNum, np.degrees(angles), np.degrees(midJointAngles))
+
+        # Select the solution with the smaller angle - due to the
+        #   construction of the angle, this will give us the outward
+        #   facing joint we want
+        pointSelectedIndex = np.argmin(midJointAngles)
+        leverAngles[legNum] = angles[pointSelectedIndex]
+        midJoint[legNum, :] = points[pointSelectedIndex]
+
+    return midJoint, leverAngles
 
 def fk(bPos, pPos, s, c, w, sigma):
     """
@@ -150,7 +275,7 @@ def fk(bPos, pPos, s, c, w, sigma):
         """
         #Find static arm length
         c_i = numpy.sum(numpy.square(d2), 1)
-        print numpy.sqrt(c_i)
+        print(numpy.sqrt(c_i))
         #print c
         #import sys
         #sys.exit()
@@ -220,15 +345,15 @@ def fk(bPos, pPos, s, c, w, sigma):
         a = a + delta_a
         
     if iterNum >= maxIters:
-        print "max iterations exceeded"
+        print("max iterations exceeded")
     
     #for i in xrange(3,6):
     #    a[i] = math.degrees(a[i])
-    print "In %d iterations" % (iterNum)
+    print("In %d iterations" % (iterNum))
     return a
 
 
-
+"""
 class ConfigBased():
     def __init__(self):
         from configuration import *
@@ -245,6 +370,7 @@ class ConfigBased():
         
     def ik(self, a):
         return ik(self.bPos, self.pPos, self.s_i, self.c_i, self.eta_i, a)
+"""
 
 if __name__ == "__main__":
     c = ConfigBased()
