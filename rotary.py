@@ -335,6 +335,121 @@ def fkWorking(bPos, pPos, legLower, legUpper, legYawAngle, legAnglesSet, transla
     return translation, angles, soln
 
 
+def forces(baseJoints, upperJoints, M, F):
+    """
+    :param baseJoints: in base CS
+    :param upperJoints: in base CS
+    :param M: 3 moment components at the platform
+    :param F: 3 force components at the platform
+    :return: legforces
+
+    For the six legged platform,
+        calculate the forces in the (virtual) legs connecting the base and upper
+    """
+    #As pin joints, no moments at each joint
+    #As leg position is known, the direction of each leg force is known (well,
+    #   it's in-line with the leg. +- not known)
+
+    #For each leg, find the factor that splits the force into x, y, z directions
+    #   in the base/global CS
+    vec = np.zeros(baseJoints.shape)
+    for i in range(6):
+        #Get direction vector of leg
+        vec[i, :] = upperJoints[i, :] - baseJoints[i, :]
+        #normalise it
+        vec[i, :] = vec[i, :]/np.sqrt(np.sum(np.square(vec[i, :])))
+
+    #Force equations
+    #   These give 3 equations (one each in the cardinal directions), in the 6
+    #   unknowns of the leg forces
+    A = np.zeros((6, 6))
+    for i in range(6):
+        A[0:3, i] = np.transpose(vec[i, :])
+
+    #Moment equations
+    #   These give 3 equations, in the 6 unknowns of the leg forces.
+    #   More complicated than the force - have to do the whole force at a
+    #   distance makes a moment thing
+    for i in range(6):
+        leverArms = np.cross(upperJoints[i, :], vec[i, :])
+        A[3:, i] = leverArms
+
+    b = np.zeros((6, 1))
+    b[0:3, 0] = F
+    b[3:, 0] = M
+
+    #print(A[:3, :3])
+
+    legForces = np.linalg.solve(A, b)
+    return legForces, A, b
+
+
+def legTorques(baseJoints, midJoints, upperJoints, leverLengths, legForces, legYawAngle=None):
+    """
+    :param baseJoint:
+    :param midJoints:
+    :param upperJoints:
+    :param legForces:
+    :return: Torque of each bottom leg joint
+
+    """
+    def normVec(vec):
+        return vec/np.sqrt(np.sum(np.square(vec), axis=1)).reshape(vec.shape[0], 1)
+
+    # Get direction vectors for all
+    virtualLegDirVec = normVec(upperJoints-baseJoints)
+    leverLegVec = midJoints-baseJoints
+    leverLegDirVec = normVec(leverLegVec)
+    upperLegDirVec = normVec(upperJoints-midJoints)
+
+    if legYawAngle is None:
+        legYawAngle = np.arctan2(baseJoints[:, 0], baseJoints[:, 1])
+
+    numLegs = baseJoints.shape[0]
+    legTorque = np.full((numLegs, 1), np.nan)
+
+    # Have force required in each leg -> Just loop and calculate torque
+    for legNum in range(numLegs):
+        # Solve Ax=b
+
+        # Coefficient Matrix
+        A = np.full((3, 2), np.nan)
+        print(A)
+        print(legForces)
+        print(virtualLegDirVec[legNum, :])
+        # Force Matrix
+        #    Expand back into a force vector
+        b = legForces[legNum] * virtualLegDirVec[legNum, :]
+        print(b)
+
+        # The force vector must be carried by the two links
+        A[:, 0] = leverLegDirVec[legNum, :]
+        A[:, 1] = upperLegDirVec[legNum, :]
+
+        # Hence the force in the lower and upper links is
+        f = np.linalg.lstsq(A, b)[0]
+        print(f)
+
+        # Ignore the force in the lower leg (as it passes through
+        #    the joint, it doesn't make a torque)
+        # Must solve for the torque. Use the force at a distance thing
+        a = leverLegVec[legNum, :]  # Distance vector
+        b = f[1]*upperLegDirVec[legNum, :].T  # Force vector
+        print("Distance Vector (a)", a)
+        print("Force Vector (b)", b)
+        moment = np.cross(a, b)
+        print("Moment is:")
+        print(moment)
+
+        # But this is a 3D moment - want the one in the joint rotation axis
+        R = rotMat(0, 0, legYawAngle[legNum])
+        print(R.T @ moment)
+
+
+        legTorque[legNum] = 3
+
+    return legTorque
+
 
 
 
