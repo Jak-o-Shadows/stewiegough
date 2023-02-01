@@ -27,6 +27,9 @@ def rotMat(roll, pitch, yaw):
                         , [-sth, cth*sphi, cth*cphi]])
     return Rzyx
 
+def normVec(vec):
+    return vec/np.sqrt(np.sum(np.square(vec), axis=1)).reshape(vec.shape[0], 1)
+
 def ik(baseCentre, pPos, s, c, a):
     """
     Basic inverse kinematics of a stewart platform
@@ -393,8 +396,7 @@ def legTorques(baseJoints, midJoints, upperJoints, leverLengths, legForces, legY
     :return: Torque of each bottom leg joint
 
     """
-    def normVec(vec):
-        return vec/np.sqrt(np.sum(np.square(vec), axis=1)).reshape(vec.shape[0], 1)
+
 
     # Get direction vectors for all
     virtualLegDirVec = normVec(upperJoints-baseJoints)
@@ -411,6 +413,7 @@ def legTorques(baseJoints, midJoints, upperJoints, leverLengths, legForces, legY
     # Have force required in each leg -> Just loop and calculate torque
     for legNum in range(numLegs):
         # Solve Ax=b
+        print("\n", "Leg: ", legNum)
 
         # Coefficient Matrix
         A = np.full((3, 2), np.nan)
@@ -443,10 +446,12 @@ def legTorques(baseJoints, midJoints, upperJoints, leverLengths, legForces, legY
 
         # But this is a 3D moment - want the one in the joint rotation axis
         R = rotMat(0, 0, legYawAngle[legNum])
-        print(R.T @ moment)
+        
+        momentLocalFrame = R.T @ moment  #.T because going backwards?
+        print(momentLocalFrame)
 
 
-        legTorque[legNum] = 3
+        legTorque[legNum] = momentLocalFrame[1]
 
     return legTorque
 
