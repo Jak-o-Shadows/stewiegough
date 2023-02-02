@@ -52,7 +52,7 @@ class RotaryStewartPlatform():
         self.tran = upperNew[:3]
         self.angles_rad = upperNew[3:]
 
-        self.midJoint, self.leverAngles = rotary.legPos(self.bPos, self.upperNew, self.legLower, self.legUpper, self.legYawAngle)
+        self.midJoint, self.leverAngles = rotary.legPos(self.bPos, upperNew, self.legLower, self.legUpper, self.legYawAngle)
         for jointIndex, pos in enumerate(self.midJoint):
             # We want to always choose the solution that has the joint outside the stewart platform
             #    TODO: Figure out why this check does that (what coordiante system is midJoint in?)

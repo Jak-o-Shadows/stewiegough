@@ -21,6 +21,9 @@ from mpl_toolkits.mplot3d import Axes3D
 
 import wx
 
+import objectBased
+import vis
+
 
 class MyCanvasPanel(wx.Panel):
     def __init__(self, parent):
@@ -44,6 +47,7 @@ class MyCanvasPanel(wx.Panel):
         self.canvas.SetSize(740, 740)
         self.figure.set_size_inches(float(size[0])/self.figure.get_dpi(),
                                     float(size[1])/self.figure.get_dpi())
+        self.ax = Axes3D(self.figure)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.toolbar, 0, wx.LEFT | wx.EXPAND)
@@ -53,13 +57,7 @@ class MyCanvasPanel(wx.Panel):
         self.Fit()
 
     def plot(self):
-        x = np.arange(-3, 3, 0.25)
-        y = np.arange(-3, 3, 0.25)
-        X, Y = np.meshgrid(x, y)
-        Z = np.sin(X)+ np.cos(Y)
-
-        ax = Axes3D(self.figure)
-        ax.plot_wireframe(X, Y, Z)
+        pass
 
 
 class SliderButtonPanel(wx.Panel):
@@ -141,17 +139,22 @@ class MyFrame(wx.Frame):
     
 
 
-        panels = {}
+        self.stewart = objectBased.RotaryStewartPlatform()
+
+
+
+        self.panels = {}
         sizer = wx.BoxSizer(wx.VERTICAL)
         sp = wx.SplitterWindow(self)
-        panels = []
+        self.panels = []
         for fig_name in ["left", "right"]:
             p = MyCanvasPanel(sp)
             p.plot()
 
-            panels.append(p)
-        sp.SplitVertically(*panels, 100)
+            self.panels.append(p)
+        sp.SplitVertically(*self.panels, 100)
         sizer.Add(sp)
+
 
         for label in ["x", "y", "z"]:
             p = IntSliderTextCtrl(self, -100, 100, 0, label=label)
@@ -161,12 +164,49 @@ class MyFrame(wx.Frame):
             p = IntSliderTextCtrl(self, -180, 180, 0, label=label)
             sizer.Add(p)
 
+        # Add refresh and add button
+        self.refresh_b = wx.Button(self, label="Refresh")
+        self.update_b = wx.Button(self, label="Update Plots")
+        #self.refresh_b.Bind(wx.EVT_BUTTON, # TODO)
+        self.update_b.Bind(wx.EVT_BUTTON, self.plots_update)
+
+        sizer.Add(self.refresh_b)
+        sizer.Add(self.update_b)
+
+
 
         #self.panel = MyCanvasPanel(self)
         #self.panel.plot()
 
         self.SetSizer(sizer)
         self.Fit()
+
+    def plots_update(self, event):
+        # Get the current axis view
+        p1 = self.panels[0]
+
+        print(p1.ax.view_init())
+
+        vis.plotPlatform(p1.ax, self.stewart.bPos, 'ko-')
+        """
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        # Draw base plate
+        plotPlatform(ax, bPos, 'ko-')
+        upper = pPos + np.array([0, 0, 0.100])
+        plotPlatform(ax, upper, 'ko-')
+        drawLinks(ax, bPos, upper, 'k--')
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
+
+        ax.set_zlim(zlim)
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
+        #ax.set_aspect("equal")
+        ax.view_init(0, -90)  # xz
+        ax.view_init(90, -90)  # xy
+        """
 
 
 class MyApp(wx.App):
