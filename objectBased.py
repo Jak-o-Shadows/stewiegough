@@ -47,12 +47,10 @@ class RotaryStewartPlatform():
     def inverse(self, translation, angles):
         #translation = [0.0, 0, 1.02574227e-01]  # 0.13 is about neutral
         #angles = list(np.radians([0, 0, 0]))
-        upperNew = rotary.ik(np.array([0, 0, 0]), self.pPos, self.legLower, self.legUpper, translation+angles)
+        self.trans = rotary.ik(np.array([0, 0, 0]), self.pPos, self.legLower, self.legUpper, translation+angles)
+        self.angles_rad = angles
 
-        self.tran = upperNew[:3]
-        self.angles_rad = upperNew[3:]
-
-        self.midJoint, self.leverAngles = rotary.legPos(self.bPos, upperNew, self.legLower, self.legUpper, self.legYawAngle)
+        self.midJoint, self.leverAngles = rotary.legPos(self.bPos, self.trans, self.legLower, self.legUpper, self.legYawAngle)
         for jointIndex, pos in enumerate(self.midJoint):
             # We want to always choose the solution that has the joint outside the stewart platform
             #    TODO: Figure out why this check does that (what coordiante system is midJoint in?)
@@ -62,7 +60,7 @@ class RotaryStewartPlatform():
         # TODO: Put some of these back in as asserts
         # TODO: Log this
         #print("Lower Leg Length", np.sqrt(np.sum(np.square(self.midJoint-self.bPos), 1)))
-        #print("Upper Leg Length", np.sqrt(np.sum(np.square(self.upperNew-self.midJoint), 1)))
+        #print("Upper Leg Length", np.sqrt(np.sum(np.square(self.trans-self.midJoint), 1)))
         #print("Lower Leg Angles", np.degrees(self.leverAngles))
 
     def forward(self, leg_angles_rad):

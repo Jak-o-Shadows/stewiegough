@@ -40,6 +40,10 @@ def ik(baseCentre, pPos, s, c, a):
     :param pPos:
     :param a:
 
+    Returns
+    -------
+    The coordinates of the points of the upper platform
+
 
     """
 

@@ -1,5 +1,3 @@
-# sample_three.py
-
 """
 
 Link : https://white-wheels.hatenadiary.org/entry/20100327/p5
@@ -8,10 +6,12 @@ Link : https://white-wheels.hatenadiary.org/entry/20100327/p5
 
 import os
 import sys
+import functools
 
 import numpy as np
 import matplotlib as mpl
 import matplotlib  # TODO: Remove
+import matplotlib.pyplot as plt
 matplotlib.interactive(True)
 #matplotlib.use('WXAgg')
 from matplotlib.figure import Figure
@@ -24,6 +24,16 @@ import wx
 import objectBased
 import vis
 
+
+def on_move(fig1, ax1, fig2, ax2, event):
+    if event.inaxes == ax1:
+        ax2.view_init(elev=ax1.elev, azim=ax1.azim)
+    elif event.inaxes == ax2:
+        ax1.view_init(elev=ax2.elev, azim=ax2.azim)
+    else:
+        return
+    fig1.canvas.draw()
+    fig2.canvas.draw()
 
 class MyCanvasPanel(wx.Panel):
     def __init__(self, parent):
@@ -47,7 +57,7 @@ class MyCanvasPanel(wx.Panel):
         self.canvas.SetSize(740, 740)
         self.figure.set_size_inches(float(size[0])/self.figure.get_dpi(),
                                     float(size[1])/self.figure.get_dpi())
-        self.ax = Axes3D(self.figure)
+        self.ax = Axes3D(self.figure, proj_type='ortho')
 
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.toolbar, 0, wx.LEFT | wx.EXPAND)
@@ -56,8 +66,8 @@ class MyCanvasPanel(wx.Panel):
         self.SetSizer(sizer)
         self.Fit()
 
-    def plot(self):
-        pass
+
+
 
 
 class SliderButtonPanel(wx.Panel):
@@ -149,64 +159,76 @@ class MyFrame(wx.Frame):
         self.panels = []
         for fig_name in ["left", "right"]:
             p = MyCanvasPanel(sp)
-            p.plot()
-
             self.panels.append(p)
         sp.SplitVertically(*self.panels, 100)
         sizer.Add(sp)
 
+        # Connect the figures so they rotate as one
+        update_func = functools.partial(on_move,
+                                        self.panels[0].figure, self.panels[0].ax,
+                                        self.panels[1].figure, self.panels[1].ax)
+        self.panels[0].canvas.mpl_connect("motion_notify_event", update_func)
+        self.panels[1].canvas.mpl_connect("motion_notify_event", update_func)
 
+        self.sliders = {}
         for label in ["x", "y", "z"]:
             p = IntSliderTextCtrl(self, -100, 100, 0, label=label)
+            self.sliders[label] = p
             sizer.Add(p)
 
         for label in ["roll", "pitch", "yaw"]:
-            p = IntSliderTextCtrl(self, -180, 180, 0, label=label)
+            p = IntSliderTextCtrl(self, -30, 30, 0, label=label)
+            self.sliders[label] = p
             sizer.Add(p)
 
         # Add refresh and add button
         self.refresh_b = wx.Button(self, label="Refresh")
         self.update_b = wx.Button(self, label="Update Plots")
-        #self.refresh_b.Bind(wx.EVT_BUTTON, # TODO)
+        self.refresh_b.Bind(wx.EVT_BUTTON, self.refresh_values)
         self.update_b.Bind(wx.EVT_BUTTON, self.plots_update)
 
         sizer.Add(self.refresh_b)
         sizer.Add(self.update_b)
 
 
-
-        #self.panel = MyCanvasPanel(self)
-        #self.panel.plot()
-
         self.SetSizer(sizer)
         self.Fit()
 
     def plots_update(self, event):
-        # Get the current axis view
+        # Plot the simple platform on the left hand plot
         p1 = self.panels[0]
+        p1.ax.clear()
+        vis.plotPlatform(p1.ax, self.stewart.bPos, 'ko-')  # Base Platform
+        vis.plotPlatform(p1.ax, self.stewart.trans, 'ko-')  # Upper Platform
+        vis.drawLinks(p1.ax, self.stewart.bPos, self.stewart.trans, 'k--')
 
-        print(p1.ax.view_init())
+        p1.ax.set_xlabel('x')
+        p1.ax.set_ylabel('y')
+        p1.ax.set_zlabel('z')
 
-        vis.plotPlatform(p1.ax, self.stewart.bPos, 'ko-')
-        """
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        # Draw base plate
-        plotPlatform(ax, bPos, 'ko-')
-        upper = pPos + np.array([0, 0, 0.100])
-        plotPlatform(ax, upper, 'ko-')
-        drawLinks(ax, bPos, upper, 'k--')
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        ax.set_zlabel('z')
+        # Plot with actuator links on the right hand plot
+        p2 = self.panels[1]
+        p2.ax.clear()
+        vis.plotPlatform(p2.ax, self.stewart.bPos, 'ko-')  # Base Platform
+        vis.plotPlatform(p2.ax, self.stewart.trans, 'ko-')  # Upper Platform
 
-        ax.set_zlim(zlim)
-        ax.set_xlim(xlim)
-        ax.set_ylim(ylim)
-        #ax.set_aspect("equal")
-        ax.view_init(0, -90)  # xz
-        ax.view_init(90, -90)  # xy
-        """
+        for i, p in enumerate(self.stewart.midJoint):
+            p2.ax.plot([p[0]], [p[1]], [p[2]], 'ro')
+            x= p[0]
+            y= p[1]
+            z= p[2]
+            p2.ax.text(x, y, z, str(i), size=20, zorder=-1, color='k')
+
+        vis.drawLinks(p2.ax, self.stewart.bPos, self.stewart.midJoint, 'r-')
+        vis.drawLinks(p2.ax, self.stewart.midJoint, self.stewart.trans, 'g-')
+
+    def refresh_values(self, event):
+        trans_init = [self.sliders[dimension].GetValue()/1000 for dimension in ["x", "y", "z"]]  # mm to metres
+        angles_init_rad = list(np.deg2rad([self.sliders[dimension].GetValue() for dimension in ["roll", "pitch", "yaw"]]))
+        self.stewart.inverse(trans_init, angles_init_rad)
+
+        self.plots_update(event)
+
 
 
 class MyApp(wx.App):
