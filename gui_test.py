@@ -20,6 +20,7 @@ from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as Navigat
 from mpl_toolkits.mplot3d import Axes3D
 
 import wx
+import wx.lib.agw.floatspin
 
 import objectBased
 import vis
@@ -129,6 +130,49 @@ class IntSliderTextCtrl(wx.Panel):
 
     def GetValue(self):
         return self.slider.GetValue()
+
+
+class FloatSliderTextCtrl(wx.Panel):
+    def __init__(self, parent, lower, upper, start, increment, label=None):
+        wx.Panel.__init__(self, parent)
+
+        self.parent = parent
+        vbox = wx.BoxSizer(wx.HORIZONTAL)
+
+        if label: label = wx.StaticText(self, label=label)
+
+        self.slider = wx.Slider(self, -1, start, lower, upper, style=wx.SL_HORIZONTAL)  # TODO: Make support floats
+        self.spinner = wx.lib.agw.floatspin.FloatSpin(self, -1, min_val=lower, max_val=upper, increment=increment, value=start, agwStyle=wx.lib.agw.floatspin.FS_LEFT)
+        self.spinner.SetFormat("%f")
+        self.spinner.SetDigits(3)
+
+        self.slider.Bind(wx.EVT_SLIDER, lambda event: self._sliderUpdate(event, self.slider,self.spinner))
+        self.spinner.Bind(wx.EVT_SPINCTRL, lambda event: self._spinnerUpdate(event, self.slider,self.spinner))
+
+        if label: vbox.Add(label, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 15)
+        vbox.Add(self.slider, 1, wx.EXPAND | wx.TOP | wx.RIGHT | wx.LEFT | wx.BOTTOM)
+        vbox.Add(self.spinner, 1, wx.TOP | wx.BOTTOM)
+
+        self.SetValue(start)
+
+
+        self.SetSizer(vbox)
+        self.Fit()
+
+    def _sliderUpdate(self, event, slider, spinner):
+        spinner.SetValue(slider.GetValue())
+
+    def _spinnerUpdate(self, event, slider, spinner):
+        slider.SetValue(int(spinner.GetValue()))  # TODO: Should not convert to int
+
+    def SetValue(self, x: float):
+        self.spinner.SetValue(x)
+        self._spinnerUpdate(None, self.slider, self.spinner)
+
+    def GetValue(self):
+        return self.slider.GetValue()
+
+
 #---------------------------------------------------------------------------
 
 class MyFrame(wx.Frame):
@@ -182,13 +226,24 @@ class MyFrame(wx.Frame):
             sizer.Add(p)
 
         # Add refresh and add button
-        self.refresh_b = wx.Button(self, label="Refresh")
+        self.from_pos_b = wx.Button(self, label="From Pos")
+        self.from_angle_b = wx.Button(self, label="From Leg Angle")
         self.update_b = wx.Button(self, label="Update Plots")
-        self.refresh_b.Bind(wx.EVT_BUTTON, self.refresh_values)
+        self.from_pos_b.Bind(wx.EVT_BUTTON, self.from_pos)
+        self.from_angle_b.Bind(wx.EVT_BUTTON, self.from_angles)
         self.update_b.Bind(wx.EVT_BUTTON, self.plots_update)
 
-        sizer.Add(self.refresh_b)
+        sizer.Add(self.from_pos_b)
+        sizer.Add(self.from_angle_b)
         sizer.Add(self.update_b)
+
+        # Add leg measurements
+        self.lower_legs_angle_st = []
+        for leg_num in range(6):
+            label = f"Leg {leg_num}"
+            p = FloatSliderTextCtrl(self, -100, 100, 0, 0.01, label=label)
+            self.lower_legs_angle_st.append(p)
+            sizer.Add(p)
 
 
         self.SetSizer(sizer)
@@ -222,12 +277,26 @@ class MyFrame(wx.Frame):
         vis.drawLinks(p2.ax, self.stewart.bPos, self.stewart.midJoint, 'r-')
         vis.drawLinks(p2.ax, self.stewart.midJoint, self.stewart.trans, 'g-')
 
-    def refresh_values(self, event):
+
+    def from_pos(self, event):
         trans_init = [self.sliders[dimension].GetValue()/1000 for dimension in ["x", "y", "z"]]  # mm to metres
         angles_init_rad = list(np.deg2rad([self.sliders[dimension].GetValue() for dimension in ["roll", "pitch", "yaw"]]))
         self.stewart.inverse(trans_init, angles_init_rad)
 
+        # Put the leg angles in
+        for leg_num, angle_rad in enumerate(self.stewart.leverAngles):
+            self.lower_legs_angle_st[leg_num].SetValue(np.rad2deg(angle_rad))
+
+
         self.plots_update(event)
+
+
+    def from_angles(self, event):
+        leg_angles_rad = np.rad2deg([x.GetValue() for x in self.lower_legs_angle_st])
+        self.stewart.forward(leg_angles_rad)
+
+        self.plots_update(event)
+
 
 
 

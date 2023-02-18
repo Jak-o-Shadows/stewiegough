@@ -78,6 +78,9 @@ class RotaryStewartPlatform():
                                                         trans_init_guess,
                                                         angles_init_guess_rad)
 
+        # Rather than doing it properly and analytically calculating the endpoints, just
+        #   run it through inverse again
+        self.inverse(translation, angles)
 
 
     def leg_forces(self, force, moment):
